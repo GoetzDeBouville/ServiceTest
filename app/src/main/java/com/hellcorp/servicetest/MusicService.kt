@@ -2,53 +2,58 @@ package com.hellcorp.servicetest
 
 import android.app.Service
 import android.content.Intent
-import android.media.MediaPlayer
 import android.os.IBinder
 import android.util.Log
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 
 class MusicService : Service() {
-    private var mediaPlayer: MediaPlayer? = null
+    private var player: ExoPlayer? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
-
         Log.d(LOG_TAG, "onCreate")
-        mediaPlayer = MediaPlayer()
+        player = ExoPlayer.Builder(this).build()
+
+        player?.addListener(playerListener)
     }
 
     override fun onDestroy() {
-        Log.d(LOG_TAG, "onDestroy")
-
-        mediaPlayer?.setOnPreparedListener(null)
-        mediaPlayer?.setOnCompletionListener(null)
-        mediaPlayer?.release()
-        mediaPlayer = null
+        player?.release()
+        stopSelf()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(LOG_TAG, "onStartCommand | flags: $flags, startId: $startId")
 
-        val songUrl = intent?.getStringExtra("song_url")
+        val songUrl = intent?.getStringExtra(MainActivity.SONG_URL_KEY)
         if (songUrl != null) {
             Log.d(LOG_TAG, "onStartCommand -> song url exists")
+            prepareAndStartPlayer(songUrl)
+        }
+        Log.i(LOG_TAG, "Process = ${android.os.Process.myPid()}")
 
-            mediaPlayer?.setDataSource(songUrl)
-            mediaPlayer?.prepareAsync()
+        Log.d(LOG_TAG, "onStartCommand -> before return")
+        return Service.START_NOT_STICKY
+    }
 
-            mediaPlayer?.setOnPreparedListener {
-                it?.start()
-            }
+    private fun prepareAndStartPlayer(songUrl: String) {
+        val mediaItem = MediaItem.fromUri(songUrl)
+        player?.addMediaItem(mediaItem)
+        player?.prepare()
+        player?.play()
+    }
 
-            mediaPlayer?.setOnCompletionListener {
+    private val playerListener = object : Player.Listener {
+        override fun onPlaybackStateChanged(state: Int) {
+            if (state == Player.STATE_ENDED) {
+                Log.d(LOG_TAG, "Player.STATE_ENDED")
                 stopSelf()
             }
         }
-
-        Log.d(LOG_TAG, "onStartCommand -> before return")
-
-        return Service.START_NOT_STICKY
     }
 
     companion object {
