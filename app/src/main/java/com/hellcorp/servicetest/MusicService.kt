@@ -37,7 +37,7 @@ class MusicService : Service() {
         Log.i(LOG_TAG, "Process = ${android.os.Process.myPid()}")
 
         Log.d(LOG_TAG, "onStartCommand -> before return")
-        return Service.START_NOT_STICKY
+        return Service.START_REDELIVER_INTENT
     }
 
     private fun prepareAndStartPlayer(songUrl: String) {

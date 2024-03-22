@@ -20,6 +20,11 @@ class MainActivity : AppCompatActivity() {
             Log.i("MainActivity", "Process = ${android.os.Process.myPid()}")
             startService(intent)
         }
+
+        findViewById<Button>(R.id.startProgressServiceButton).setOnClickListener {
+            val intent = Intent(this, ProgressService::class.java)
+            startService(intent)
+        }
     }
 
     companion object {
