@@ -18,7 +18,7 @@ class ProgressService : Service() {
                 Log.i(LOG_TAG, "Progress: $i%")
                 Thread.sleep(333)
             }
-            stopSelf()
+            stopSelf(startId) // требуется передавать startId чтобы останавливать конкретный процесс, в случае, если их будет запущено много
 
         }
 
