@@ -1,12 +1,10 @@
 package com.hellcorp.servicetest
 
 import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -23,18 +21,18 @@ import kotlinx.coroutines.withContext
 
 class MusicService : Service() {
     private var player: ExoPlayer? = null
-    private var serviceJob: Job? = null
+    private var songUrl = ""
+    private val binder = MusicServiceBinder()
 
-    override fun onBind(intent: Intent?): IBinder? = null
+    inner class MusicServiceBinder : Binder() {
+        fun getService(): MusicService = this@MusicService
+    }
 
-    override fun onCreate() {
-        super.onCreate()
-        Log.d(LOG_TAG, "onCreate")
-        player = ExoPlayer.Builder(this).build()
-
-        player?.addListener(playerListener)
-
-        createNotificationChannel()
+    override fun onBind(intent: Intent?): IBinder {
+        songUrl = intent?.getStringExtra(MainActivity.SONG_URL_KEY) ?: ""
+        if (songUrl.isNotEmpty()) {
+            prepareAndStartPlayer(songUrl)
+        }
 
         ServiceCompat.startForeground(
             this,
@@ -42,62 +40,41 @@ class MusicService : Service() {
             createServiceNotification(),
             getForegroundServiceTypeConstant()
         )
+        return binder
     }
 
-    override fun onDestroy() {
+    override fun onCreate() {
+        super.onCreate()
+        player = ExoPlayer.Builder(this).build()
+        player?.addListener(playerListener)
+    }
+
+    override fun onUnbind(intent: Intent?): Boolean {
         player?.release()
-        serviceJob?.cancel()
         stopSelf()
+        return super.onUnbind(intent)
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(LOG_TAG, "onStartCommand | flags: $flags, startId: $startId")
-
-        val songUrl = intent?.getStringExtra(MainActivity.SONG_URL_KEY)
-        if (songUrl != null) {
-            Log.d(LOG_TAG, "onStartCommand -> song url exists")
-            serviceJob = CoroutineScope(Dispatchers.Default).launch {
-                prepareAndStartPlayer(songUrl)
-            }
-        }
-        Log.i(LOG_TAG, "Process = ${android.os.Process.myPid()}")
-
-        Log.d(LOG_TAG, "onStartCommand -> before return")
-        return Service.START_REDELIVER_INTENT
+    private fun prepareAndStartPlayer(songUrl: String) {
+        val mediaItem = MediaItem.fromUri(songUrl)
+        player?.addMediaItem(mediaItem)
+        player?.prepare()
     }
 
-    private suspend fun prepareAndStartPlayer(songUrl: String) {
-        withContext(Dispatchers.Main) {
-            val mediaItem = MediaItem.fromUri(songUrl)
-            player?.addMediaItem(mediaItem)
-            player?.prepare()
-            player?.play()
-        }
+    fun playPlayer() {
+        player?.play()
+    }
+
+    fun pausePlayer() {
+        player?.pause()
     }
 
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
             if (state == Player.STATE_ENDED) {
                 Log.d(LOG_TAG, "Player.STATE_ENDED")
-                stopSelf()
             }
         }
-    }
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return
-        }
-        val channel = NotificationChannel(
-            NOTIFICATION_CHANNEL_ID,
-            "Music service",
-            NotificationManager.IMPORTANCE_HIGH
-        )
-        channel.description = "Service for playing music"
-
-        val notificationManager =
-            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.createNotificationChannel(channel)
     }
 
     private fun createServiceNotification(): Notification {
