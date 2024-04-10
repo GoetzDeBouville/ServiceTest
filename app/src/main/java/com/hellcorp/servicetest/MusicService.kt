@@ -7,7 +7,6 @@ import android.content.pm.ServiceInfo
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.media3.common.MediaItem
@@ -16,13 +15,24 @@ import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 class MusicService : Service() {
     private var player: ExoPlayer? = null
     private var songUrl = ""
     private val binder = MusicServiceBinder()
+
+    //    private var playerState: PlayerState = PlayerState.Default()
+    private var timerJob: Job? = null
+
+    private val _playerState = MutableStateFlow<PlayerState>(PlayerState.Default())
+    val playerState: StateFlow<PlayerState>
+        get() = _playerState
 
     inner class MusicServiceBinder : Binder() {
         fun getService(): MusicService = this@MusicService
@@ -31,7 +41,7 @@ class MusicService : Service() {
     override fun onBind(intent: Intent?): IBinder {
         songUrl = intent?.getStringExtra(MainActivity.SONG_URL_KEY) ?: ""
         if (songUrl.isNotEmpty()) {
-            prepareAndStartPlayer(songUrl)
+            preparePlayer(songUrl)
         }
 
         ServiceCompat.startForeground(
@@ -43,6 +53,20 @@ class MusicService : Service() {
         return binder
     }
 
+    private fun startTimer() {
+        timerJob = CoroutineScope(Dispatchers.Main).launch {
+            while (player?.isPlaying == true) {
+                delay(30L)
+                _playerState.value = PlayerState.Playing(getCurrentPlayerPosition())
+            }
+        }
+    }
+
+    private fun getCurrentPlayerPosition(): String {
+        return SimpleDateFormat("mm:ss", Locale.getDefault()).format(player?.currentPosition)
+            ?: "00:00"
+    }
+
     override fun onCreate() {
         super.onCreate()
         player = ExoPlayer.Builder(this).build()
@@ -50,12 +74,12 @@ class MusicService : Service() {
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
-        player?.release()
+        releasePlayer()
         stopSelf()
         return super.onUnbind(intent)
     }
 
-    private fun prepareAndStartPlayer(songUrl: String) {
+    private fun preparePlayer(songUrl: String) {
         val mediaItem = MediaItem.fromUri(songUrl)
         player?.addMediaItem(mediaItem)
         player?.prepare()
@@ -63,16 +87,30 @@ class MusicService : Service() {
 
     fun playPlayer() {
         player?.play()
+        _playerState.value = PlayerState.Playing(getCurrentPlayerPosition())
+        startTimer()
     }
 
     fun pausePlayer() {
         player?.pause()
+        timerJob?.cancel()
+        _playerState.value = PlayerState.Paused(getCurrentPlayerPosition())
+    }
+
+    private fun releasePlayer() {
+        player?.stop()
+        player?.release()
+        timerJob?.cancel()
+        _playerState.value = PlayerState.Default()
+        player = null
     }
 
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
-            if (state == Player.STATE_ENDED) {
-                Log.d(LOG_TAG, "Player.STATE_ENDED")
+            if (state == Player.STATE_ENDED || state == Player.STATE_READY) {
+                _playerState.value = PlayerState.Prepared()
+            } else if (state == Player.STATE_BUFFERING) {
+                _playerState.value = PlayerState.Loading()
             }
         }
     }
@@ -96,7 +134,6 @@ class MusicService : Service() {
     }
 
     companion object {
-        const val LOG_TAG = "MusicService"
         const val NOTIFICATION_CHANNEL_ID = "music_service_channel"
         const val SERVICE_NOTIFICATION_ID = 100
     }

@@ -9,18 +9,29 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.widget.Button
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
     private var musicService: MusicService? = null
+    private var playerState : PlayerState = PlayerState.Default()
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             val binder = service as MusicService.MusicServiceBinder
             musicService = binder.getService()
+
+            lifecycleScope.launch {
+                musicService?.playerState?.collect {
+                    playerState = it
+                    updateButtonAndProgress(it)
+                }
+            }
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -55,7 +66,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.playButton).setOnClickListener {
-            musicService?.playPlayer()
+            if (playerState is PlayerState.Prepared || playerState is PlayerState.Paused) {
+                musicService?.playPlayer()
+            } else {
+                musicService?.pausePlayer()
+            }
         }
     }
 
@@ -73,6 +88,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun unBindMusicService() {
         unbindService(serviceConnection)
+    }
+
+    private fun updateButtonAndProgress(playerState: PlayerState) {
+        findViewById<Button>(R.id.playButton)?.apply {
+            text = playerState.buttonText
+            isEnabled = playerState.buttonState
+        }
+        findViewById<TextView>(R.id.timerTextView)?.text = playerState.progress
     }
 
     companion object {
