@@ -47,4 +47,5 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
 
     implementation(libs.bundles.exoplayer)
+    implementation(libs.bundles.navigation)
 }

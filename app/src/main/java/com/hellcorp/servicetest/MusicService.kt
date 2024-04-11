@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-class MusicService : Service() {
+class MusicService : Service(), PlayerControl {
     private var player: ExoPlayer? = null
     private var songUrl = ""
     private val binder = MusicServiceBinder()
@@ -85,13 +85,17 @@ class MusicService : Service() {
         player?.prepare()
     }
 
-    fun playPlayer() {
+    override fun getPlayerStateInternal(): StateFlow<PlayerState> {
+        return playerState
+    }
+
+    override fun startPlayer() {
         player?.play()
         _playerState.value = PlayerState.Playing(getCurrentPlayerPosition())
         startTimer()
     }
 
-    fun pausePlayer() {
+    override fun pausePlayer() {
         player?.pause()
         timerJob?.cancel()
         _playerState.value = PlayerState.Paused(getCurrentPlayerPosition())

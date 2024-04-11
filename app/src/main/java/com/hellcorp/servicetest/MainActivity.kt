@@ -12,30 +12,34 @@ import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
-    private var musicService: MusicService? = null
-    private var playerState : PlayerState = PlayerState.Default()
+//    private var musicService: MusicService? = null
+    private var playerState: PlayerState = PlayerState.Default()
+    private val viewModel: MainScreenViewModel by viewModels<MainScreenViewModel>()
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             val binder = service as MusicService.MusicServiceBinder
-            musicService = binder.getService()
-
-            lifecycleScope.launch {
-                musicService?.playerState?.collect {
-                    playerState = it
-                    updateButtonAndProgress(it)
-                }
-            }
+//            musicService = binder.getService()
+//
+//            lifecycleScope.launch {
+//                musicService?.playerState?.collect {
+//                    playerState = it
+//                    updateButtonAndProgress(it)
+//                }
+//            }
+            viewModel.playerControl(binder.getService())
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
-            musicService = null
+//            musicService = null
+            viewModel.removePlayerControl()
         }
     }
 
@@ -55,6 +59,12 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        lifecycleScope.launch {
+            viewModel.plpayerState.collect { state ->
+                updateButtonAndProgress(state)
+            }
+        }
+
         // Прежде чем привязаться к сервису, который будет показывать уведомление
         // Мы должны проверить, выданы ли соответствующие разрешения
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -66,11 +76,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.playButton).setOnClickListener {
-            if (playerState is PlayerState.Prepared || playerState is PlayerState.Paused) {
-                musicService?.playPlayer()
-            } else {
-                musicService?.pausePlayer()
-            }
+            viewModel.onPlayerButtonCLicked()
+//            if (playerState is PlayerState.Prepared || playerState is PlayerState.Paused) {
+//                musicService?.startPlayer()
+//            } else {
+//                musicService?.pausePlayer()
+//            }
         }
     }
 
