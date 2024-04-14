@@ -18,7 +18,7 @@ class MainScreenViewModel : ViewModel() {
         removePlayerControl()
     }
 
-    fun playerControl(playerControl: PlayerControl) {
+    fun playerControlManager(playerControl: PlayerControl) {
         this.playerControl = playerControl
         viewModelScope.launch {
             playerControl.getPlayerStateInternal().collect {

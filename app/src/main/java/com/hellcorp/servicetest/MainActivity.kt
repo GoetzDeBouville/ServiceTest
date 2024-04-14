@@ -34,7 +34,7 @@ class MainActivity : AppCompatActivity() {
 //                    updateButtonAndProgress(it)
 //                }
 //            }
-            viewModel.playerControl(binder.getService())
+            viewModel.playerControlManager(binder.getService())
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
